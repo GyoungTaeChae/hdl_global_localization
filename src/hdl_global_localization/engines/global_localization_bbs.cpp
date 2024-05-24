@@ -5,7 +5,9 @@
 
 #include <hdl_global_localization/bbs/bbs_localization.hpp>
 #include <hdl_global_localization/bbs/occupancy_gridmap.hpp>
-
+#include <vector>
+#include <iostream>
+#include <omp.h>
 namespace hdl_global_localization {
 
 GlobalLocalizationBBS::GlobalLocalizationBBS(ros::NodeHandle& private_nh) : private_nh(private_nh) {
@@ -29,7 +31,7 @@ void GlobalLocalizationBBS::set_global_map(pcl::PointCloud<pcl::PointXYZ>::Const
 
   double map_min_z = private_nh.param<double>("bbs/map_min_z", 2.0);
   double map_max_z = private_nh.param<double>("bbs/map_max_z", 2.4);
-  auto map_2d = slice(*cloud, map_min_z, map_max_z);
+  auto map_2d = slice(*cloud);
   ROS_INFO_STREAM("Set Map " << map_2d.size() << " points");
 
   if (map_2d.size() < 128) {
@@ -53,8 +55,8 @@ void GlobalLocalizationBBS::set_global_map(pcl::PointCloud<pcl::PointXYZ>::Const
 GlobalLocalizationResults GlobalLocalizationBBS::query(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, int max_num_candidates) {
   double scan_min_z = private_nh.param<double>("bbs/scan_min_z", -0.2);
   double scan_max_z = private_nh.param<double>("bbs/scan_max_z", 0.2);
-  auto scan_2d = slice(*cloud, scan_min_z, scan_max_z);
-
+  auto scan_2d = slice_scan(*cloud, scan_min_z, scan_max_z); // 라이다를 파라미터로 자를때 
+  // auto scan_2d = slice(*cloud); // 라이다를 그리드로 자를때 
   std::vector<GlobalLocalizationResult::Ptr> results;
 
   ROS_INFO_STREAM("Query " << scan_2d.size() << " points");
@@ -86,7 +88,7 @@ GlobalLocalizationResults GlobalLocalizationBBS::query(pcl::PointCloud<pcl::Poin
   return GlobalLocalizationResults(results);
 }
 
-GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_z, double max_z) const {
+GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice_scan(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_z, double max_z) const {
   Points2D points_2d;
   points_2d.reserve(cloud.size());
   for (int i = 0; i < cloud.size(); i++) {
@@ -94,6 +96,59 @@ GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointClo
       points_2d.push_back(cloud.at(i).getVector3fMap().head<2>());
     }
   }
+  return points_2d;
+}
+
+GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointCloud<pcl::PointXYZ>& cloud) const {
+  Points2D points_2d;
+
+
+  float min_x = std::numeric_limits<float>::max();
+  float max_x = -std::numeric_limits<float>::max();
+  for (const auto& point : cloud) {
+    if (point.x < min_x) min_x = point.x;
+    if (point.x > max_x) max_x = point.x;
+  }
+
+  // 2. pcd의 최소 y값부터 최대 y값의 범위내에서 반복
+  float min_y = std::numeric_limits<float>::max();
+  float max_y = -std::numeric_limits<float>::max();
+  for (const auto& point : cloud) {
+    if (point.y < min_y) min_y = point.y;
+    if (point.y > max_y) max_y = point.y;
+  }
+
+  float resolution = 10.0f;
+
+  for (float x = min_x; x <= max_x; x +=resolution ) {
+    for (float y = min_y; y <= max_y; y += resolution) {
+      float min_z_in_range = std::numeric_limits<float>::max();
+      for (const auto& point : cloud) {
+        if (point.x >= x && point.x <= x + resolution && point.y >= y && point.y <= y + resolution) {
+          min_z_in_range = std::min(min_z_in_range, point.z);
+          
+        }
+      }
+
+      if (min_z_in_range > 40)
+        continue;
+      // std::cout << x<< "와 " << x+resolution << ",  " << y<< "와 " << y+resolution << ",사이에서의 최소값 : " << min_z_in_range << std::endl; 
+
+      for (const auto& point : cloud) {
+        if (point.x >= x && point.x <= x + resolution && point.y >= y && point.y <= y + resolution &&
+            point.z >= min_z_in_range +3.0 && point.z <= min_z_in_range + 4.5) {
+              // point.z >= min_z_in_range +3.5 && point.z <= min_z_in_range + 4.0){
+          points_2d.push_back(point.getVector3fMap().head<2>());
+          
+        }
+      }
+    }
+  }
+
+  std::cout << "min_x :" << min_x << "  max_x :" << max_x << std::endl;
+  std::cout << "min_y :" << min_y << "  max_y :" << max_y << std::endl;
+  std::cout << "the number of cloud for global localization point is :" << points_2d.size() << std::endl;
+  std::cout << "*****global map slice done*****" <<std::endl;
   return points_2d;
 }
 

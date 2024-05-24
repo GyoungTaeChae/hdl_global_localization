@@ -35,13 +35,12 @@ public:
         value(loc) += 1;
       }
     }
-
     values /= min_points_per_grid;
     for (auto& x : values) {
       x = std::min(x, 1.0f);
     }
   }
-
+  
   double calc_score(const std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f>>& points) const {
     double sum_dists = 0.0;
     for (const auto& pt : points) {
@@ -53,12 +52,13 @@ public:
 
     return sum_dists;
   }
-
+  //해상도가 낮아지는법 
   OccupancyGridMap::Ptr pyramid_up() const {
     cv::Mat1f small_map(values.rows / 2, values.cols / 2);
     for (int i = 0; i < values.rows / 2; i++) {
       for (int j = 0; j < values.cols / 2; j++) {
         float x = values.at<float>(i * 2, j * 2);
+        //주변을 살피변수 최대값넣기
         x = std::max(x, values.at<float>(i * 2 + 1, j * 2));
         x = std::max(x, values.at<float>(i * 2, j * 2 + 1));
         x = std::max(x, values.at<float>(i * 2 + 1, j * 2 + 1));

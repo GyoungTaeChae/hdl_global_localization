@@ -15,16 +15,71 @@
 #include <hdl_global_localization/bbs/bbs_localization.hpp>
 #include <hdl_global_localization/bbs/occupancy_gridmap.hpp>
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr slice(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_height, double max_height) {
+// pcl::PointCloud<pcl::PointXYZ>::Ptr slice(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_height, double max_height) {
+//   auto filtered = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+//   filtered->header = cloud.header;
+//   for (const auto& pt : cloud) {
+//     if (min_height < pt.z && pt.z < max_height) {
+//       filtered->push_back(pt);
+//     }
+//   }
+//   return filtered;
+// }
+
+
+//******************************************************************
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr slice(const pcl::PointCloud<pcl::PointXYZ>& cloud) {
   auto filtered = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
   filtered->header = cloud.header;
+
+  // Find min and max x, y, and z values
+  float min_x = std::numeric_limits<float>::max();
+  float max_x = std::numeric_limits<float>::lowest();
+  float min_y = std::numeric_limits<float>::max();
+  float max_y = std::numeric_limits<float>::lowest();
+  float min_z = std::numeric_limits<float>::max();
+  float max_z = std::numeric_limits<float>::lowest();
+
   for (const auto& pt : cloud) {
-    if (min_height < pt.z && pt.z < max_height) {
-      filtered->push_back(pt);
+    min_x = std::min(min_x, pt.x);
+    max_x = std::max(max_x, pt.x);
+    min_y = std::min(min_y, pt.y);
+    max_y = std::max(max_y, pt.y);
+    min_z = std::min(min_z, pt.z);
+    max_z = std::max(max_z, pt.z);
+  }
+    std::cout << "min_x: " << min_x << std::endl;
+    std::cout << "max_x: " << max_x << std::endl;
+    std::cout << "min_y : " << min_y << std::endl;
+    std::cout << "max_y : " << max_y << std::endl;
+    std::cout << "min_z : " << min_z << std::endl;
+    std::cout << "max_z : " << max_z << std::endl;
+
+  // Iterate over x and y ranges
+  for (float x = min_x; x <= max_x; x += 5) {
+    for (float y = min_y; y <= max_y; y += 5) {
+      // Find min z value within the range
+      float min_z_within_range = std::numeric_limits<float>::max();
+      for (const auto& pt : cloud) {
+        if (pt.x >= x && pt.x < x + 5 && pt.y >= y && pt.y < y + 5) {
+          min_z_within_range = std::min(min_z_within_range, pt.z);
+        }
+      }
+
+      // Slice within the range of min_z + 3 to min_z + 3.4
+      for (const auto& pt : cloud) {
+        if (pt.x >= x && pt.x < x + 5 && pt.y >= y && pt.y < y + 5 &&
+            pt.z >= min_z_within_range + 3 && pt.z <= min_z_within_range + 3.4) {
+          filtered->push_back(pt);
+        }
+      }
     }
   }
+
   return filtered;
 }
+//******************************************************************
 
 std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f>> project_to_2d(const pcl::PointCloud<pcl::PointXYZ>& cloud) {
   std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f>> points;
