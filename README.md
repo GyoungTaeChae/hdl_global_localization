@@ -1,11 +1,15 @@
 # hdl_global_localization
 
-![hdl_global_localization](https://user-images.githubusercontent.com/31344317/105116113-71fc6180-5b0d-11eb-9d85-bbea922dde84.gif)
+![hdl_global_localization](Abstract.png)
 
 
 
-## what's difference?
-- modified slice function GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice in src/engines/global_localization_bbs 
-- if there's big variance in z values in map pcd, it's hard to perform bbs_localization
-- it aims to dynamically project map considering its surrounding z-values distribution 
+## 1. Dynamic Projection
+- Modified the slice function in `GlobalLocalizationBBS::slice` in `src/engines/global_localization_bbs`.
+- When there is a significant variance in the z-values of the map point cloud data (pcd), performing `bbs_localization` becomes challenging.
+- This feature aims to dynamically project the map, taking into account the distribution of surrounding z-values.
 
+## 2. Reduced Search Region Using GNSS 
+- `BBS localization` struggles in large target areas (as do other algorithms).
+- We aim to reduce the search area using GPS sensor data.
+- The search is confined to the vicinity of the GNSS receiving point.
