@@ -85,6 +85,11 @@ private:
 
   double theta_resolution;
   std::vector<std::shared_ptr<OccupancyGridMap>> gridmap_pyramid;
+
+  mutable double latitude;
+  mutable double longitude;
+  ros::Subscriber utm_sub;
+  void utmCallback(const std_msgs::Float64MultiArray::ConstPtr& msg) const;
 };
 
 }  // namespace hdl_global_localization

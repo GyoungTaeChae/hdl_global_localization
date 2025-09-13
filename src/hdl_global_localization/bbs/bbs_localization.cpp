@@ -72,7 +72,12 @@ std::vector<DiscreteTransformation> DiscreteTransformation::branch() {
   return b;
 }
 
-BBSLocalization::BBSLocalization(const BBSParams& params) : params(params) {}
+BBSLocalization::BBSLocalization(const BBSParams& params) : params(params) {
+  {
+  ros::NodeHandle nh;
+  utm_sub = nh.subscribe("utm_deltas", 10, &BBSLocalization::utmCallback, this);
+}
+}
 
 BBSLocalization::~BBSLocalization() {}
 
@@ -83,6 +88,17 @@ void BBSLocalization::set_map(const BBSLocalization::Points& map_points, double 
 
   for (int i = 1; i < pyramid_levels; i++) {
     gridmap_pyramid[i] = gridmap_pyramid[i - 1]->pyramid_up();
+  }
+}
+
+
+
+void BBSLocalization::utmCallback(const std_msgs::Float64MultiArray::ConstPtr& msg) const {
+  if (msg->data.size() == 2) {
+    latitude = msg->data[0];
+    longitude = msg->data[1];
+  } else {
+    ROS_WARN("Received invalid UTM delta data");
   }
 }
 
@@ -133,8 +149,8 @@ std::shared_ptr<const OccupancyGridMap> BBSLocalization::gridmap() const {
 
 std::priority_queue<DiscreteTransformation> BBSLocalization::create_init_transset(const Points& scan_points) const {
   double trans_res = gridmap_pyramid.back()->grid_resolution();
-  std::pair<int, int> tx_range(std::floor(params.min_tx / trans_res), std::ceil(params.max_tx / trans_res));
-  std::pair<int, int> ty_range(std::floor(params.min_ty / trans_res), std::ceil(params.max_ty / trans_res));
+  std::pair<int, int> tx_range(std::floor((latitude - 300) / trans_res), std::ceil((latitude + 300) / trans_res));
+  std::pair<int, int> ty_range(std::floor((longitude - 300) / trans_res), std::ceil((longitude + 300) / trans_res));
   std::pair<int, int> theta_range(std::floor(params.min_theta / theta_resolution), std::ceil(params.max_theta / theta_resolution));
 
   ROS_INFO_STREAM("Resolution trans:" << trans_res << " theta:" << theta_resolution);
