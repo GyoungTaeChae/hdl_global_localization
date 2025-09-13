@@ -86,16 +86,94 @@ GlobalLocalizationResults GlobalLocalizationBBS::query(pcl::PointCloud<pcl::Poin
   return GlobalLocalizationResults(results);
 }
 
-GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_z, double max_z) const {
+// GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointCloud<pcl::PointXYZ>& cloud, double min_z, double max_z) const {
+//   Points2D points_2d;
+//   points_2d.reserve(cloud.size());
+//   for (int i = 0; i < cloud.size(); i++) {
+//     if (min_z < cloud.at(i).z && cloud.at(i).z < max_z) {
+//       points_2d.push_back(cloud.at(i).getVector3fMap().head<2>());
+//     }
+//   }
+//   return points_2d;
+// }
+
+GlobalLocalizationBBS::Points2D GlobalLocalizationBBS::slice(const pcl::PointCloud<pcl::PointXYZ>& cloud) const {
   Points2D points_2d;
-  points_2d.reserve(cloud.size());
-  for (int i = 0; i < cloud.size(); i++) {
-    if (min_z < cloud.at(i).z && cloud.at(i).z < max_z) {
-      points_2d.push_back(cloud.at(i).getVector3fMap().head<2>());
+
+  float min_x = std::numeric_limits<float>::max();
+  float max_x = -std::numeric_limits<float>::max();
+  float min_y = std::numeric_limits<float>::max();
+  float max_y = -std::numeric_limits<float>::max();
+
+  for (const auto& point : cloud) {
+    if (point.x < min_x) min_x = point.x;
+    if (point.x > max_x) max_x = point.x;
+    if (point.y < min_y) min_y = point.y;
+    if (point.y > max_y) max_y = point.y;
+  }
+
+  float resolution = 10.0f;
+
+  // x, y 루프 총 반복 횟수 계산
+  int x_steps = static_cast<int>(std::ceil((max_x - min_x) / resolution)) + 1;
+  int y_steps = static_cast<int>(std::ceil((max_y - min_y) / resolution)) + 1;
+  int total_steps = x_steps * y_steps; // 전체 반복 횟수
+
+  int current_step = 0;
+  int slice_lower = 3.0f;
+  int slice_upper = 7.0f;
+  for (float x = min_x; x <= max_x; x += resolution) {
+    for (float y = min_y; y <= max_y; y += resolution) {
+      current_step++; // 현재 진행된 스텝
+
+      std::vector<float> z_values;
+      z_values.reserve(cloud.size());
+      for (const auto& point : cloud) {
+        if (point.x >= x && point.x <= x + resolution &&
+            point.y >= y && point.y <= y + resolution) {
+          z_values.push_back(point.z);
+        }
+      }
+
+      if (z_values.empty()) {
+        float progress = (static_cast<float>(current_step) / total_steps) * 100.0f;
+        std::cout << "\rProgress: " << progress << "%  " << std::flush; 
+        continue;
+      }
+
+      std::sort(z_values.begin(), z_values.end());
+      size_t cutoff_index = std::max(static_cast<size_t>(1), z_values.size() / 10);
+
+      std::vector<float> lower_10_percent(z_values.begin(), z_values.begin() + cutoff_index);
+      float sum_z = 0.0f;
+      for (float z : lower_10_percent) {
+        sum_z += z;
+      }
+      float mean_z_lower_10 = sum_z / static_cast<float>(lower_10_percent.size());
+
+      float min_z_in_range = mean_z_lower_10;
+      float lower_bound = min_z_in_range + slice_lower;
+      float upper_bound = min_z_in_range + slice_upper;
+
+      if (min_z_in_range > 40.0f) {
+        // 진행률 표시
+        float progress = (static_cast<float>(current_step) / total_steps) * 100.0f;
+        std::cout << "\rProgress: " << progress << "%  " << slice_lower <<" ~ "<<slice_upper <<  std::flush;
+        continue;
+      }
+
+      for (const auto& point : cloud) {
+        if (point.x >= x && point.x <= x + resolution &&
+            point.y >= y && point.y <= y + resolution &&
+            point.z >= lower_bound && point.z <= upper_bound) {
+          points_2d.push_back(point.getVector3fMap().head<2>());
+        }
+      }
+
+      float progress = (static_cast<float>(current_step) / total_steps) * 100.0f;
+      std::cout << "\rProgress: " << progress << "%  " << std::flush;
     }
   }
-  return points_2d;
-}
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr GlobalLocalizationBBS::unslice(const Points2D& points) {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
